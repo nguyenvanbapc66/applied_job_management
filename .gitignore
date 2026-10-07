@@ -1,0 +1,19 @@
+# dependencies — không neo `/`: monorepo có node_modules ở mọi workspace
+node_modules/
+
+# build
+dist/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# env — chứa DATABASE_URL và khoá service-to-service, không bao giờ commit
+.env
+.env.local
+.env.*.local
+
+# misc
+.DS_Store
+npm-debug.log*
+._*

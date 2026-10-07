@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bàn săn job</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="today">
+    <div>
+      <p class="today-date" id="todayDate"></p>
+      <h1 id="greeting"></h1>
+      <ul class="agenda" id="agenda"></ul>
+    </div>
+    <figure class="week" aria-labelledby="weekCap">
+      <ol id="week"></ol>
+      <figcaption id="weekCap"></figcaption>
+    </figure>
+  </header>
+
+  <div class="toolbar">
+    <input type="search" id="search" placeholder="Tìm công ty, vị trí…  ( / )" aria-label="Tìm job">
+    <button class="btn ghost" id="exportBtn">Xuất file</button>
+    <label class="btn ghost">Nhập file<input type="file" id="importInput" accept="application/json" hidden></label>
+    <button class="btn primary" id="addBtn">Thêm job <kbd>N</kbd></button>
+  </div>
+
+  <main class="board" id="board"></main>
+
+  <dialog class="drawer" id="drawer" aria-labelledby="drawerTitle">
+    <form id="jobForm" method="dialog">
+      <header class="drawer-head">
+        <h2 id="drawerTitle">Thêm job</h2>
+        <button type="button" class="btn icon" data-close aria-label="Đóng">✕</button>
+      </header>
+      <div class="fields">
+        <label>Công ty<input name="company" required autocomplete="off"></label>
+        <label>Vị trí<input name="role" required autocomplete="off"></label>
+        <fieldset class="stage-pick">
+          <legend>Giai đoạn</legend>
+          <div id="stagePick"></div>
+        </fieldset>
+        <div class="row">
+          <label>Ngày apply<input name="appliedDate" type="date"></label>
+          <label>Địa điểm<input name="location" placeholder="Hà Nội · Remote"></label>
+        </div>
+        <label>Mức lương<input name="salary" placeholder="vd. 30–40 triệu"></label>
+        <label>Link tin tuyển dụng<input name="url" type="url" placeholder="https://"></label>
+        <div class="next">
+          <p>Bước tiếp theo</p>
+          <div class="row">
+            <label>Ngày<input name="nextDate" type="date"></label>
+            <label>Việc cần làm<input name="nextNote" placeholder="Gửi email hỏi kết quả"></label>
+          </div>
+        </div>
+        <label>Ghi chú<textarea name="notes" rows="5" placeholder="Người liên hệ, câu hỏi phỏng vấn, cảm nhận…"></textarea></label>
+      </div>
+      <footer class="drawer-foot">
+        <button type="button" class="btn danger" id="deleteBtn">Xoá job</button>
+        <button class="btn primary" value="save">Lưu</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="logic.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
