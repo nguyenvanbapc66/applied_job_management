@@ -74,7 +74,7 @@ const el = (tag, props = {}, ...kids) => {
 /* ---------- Today panel ---------- */
 function renderToday() {
   const t = today();
-  $('#todayDate').textContent = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' });
+  $('#todayDate').textContent = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   const { due, stale } = agenda(jobs, t);
   const active = jobs.filter(j => ['wish', 'applied', 'interview'].includes(j.stage)).length;
@@ -348,6 +348,15 @@ function commit(...ids) {
   flush();
 }
 function render() { renderToday(); renderBoard(); }
+
+// Live clock; re-render once the date rolls over so "hôm nay"/"trễ" stay correct.
+let shownDay = today();
+setInterval(() => {
+  const now = new Date();
+  $('#clock').dateTime = now.toISOString();
+  $('#clock').textContent = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  if (signedIn && today() !== shownDay) { shownDay = today(); render(); }
+}, 1000);
 
 /* ---------- Auth ---------- */
 // Accounts are created in the Supabase dashboard only; sign-ups are disabled there.
