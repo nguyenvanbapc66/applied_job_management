@@ -45,7 +45,7 @@ button, input, textarea { font: inherit; color: inherit; }
 
 /* ---------- Today panel ---------- */
 .today {
-  margin: 16px;
+  margin: 12px 16px 16px;
   border: 1px solid var(--line);
   padding: clamp(20px, 4vw, 40px);
   border-radius: var(--r-xl);
@@ -276,7 +276,7 @@ body:not([data-auth="out"]) .login { display: none; }
   background: var(--surface);
   display: grid; gap: 14px;
 }
-.login-card h1 { margin: 0; font-size: 34px; font-weight: 700; font-variation-settings: "wdth" 82; letter-spacing: -0.02em; }
+.login-card h1 { display: flex; align-items: center; gap: 12px; margin: 0; font-size: 34px; font-weight: 700; font-variation-settings: "wdth" 82; letter-spacing: -0.02em; }
 .login-card p { margin: 0; color: var(--ink-soft); }
 .login-card label { display: grid; gap: 5px; font-size: 13.5px; color: var(--ink-soft); }
 .login-card .btn { justify-content: center; padding-block: 11px; }
@@ -284,7 +284,9 @@ body:not([data-auth="out"]) .login { display: none; }
 .login-error { color: var(--danger) !important; font-weight: 600; min-height: 1.5em; }
 @supports (corner-shape: squircle) { .login-card { corner-shape: squircle; } }
 
-.foot { display: flex; justify-content: space-between; align-items: center; margin: 0 16px 24px; }
+.appbar { display: flex; align-items: center; gap: 16px; margin: 12px 16px 0; padding: 0 4px; }
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; font-size: 18px; font-weight: 700; font-variation-settings: "wdth" 85; letter-spacing: -0.01em; }
+.appbar .btn { padding: 6px 12px; }
 .sync { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 13.5px; }
 .sync::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--offer); }
 .sync[data-state="busy"]::before { background: var(--interview); }
@@ -305,6 +307,9 @@ body:not([data-auth="out"]) .login { display: none; }
 /* ---------- Small screens ---------- */
 @media (max-width: 720px) {
   .today { grid-template-columns: 1fr; margin: 12px; gap: 16px; }
+  .appbar { margin-inline: 12px; gap: 10px; }
+  .sync[data-state="ok"] { font-size: 0; } /* all good: dot only. Problems keep their text. */
+  .sync::before { width: 10px; height: 10px; }
   .week ol { height: auto; min-height: 40px; }
   .week { text-align: left; }
   .toolbar { margin-inline: 12px; flex-wrap: wrap; }

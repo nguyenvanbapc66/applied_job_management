@@ -8,11 +8,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Bàn săn job">
+  <meta name="theme-color" content="#e7ecf0">
 </head>
 <body data-auth="loading">
   <main class="login" aria-labelledby="loginTitle">
     <form id="loginForm" class="login-card">
-      <h1 id="loginTitle">Bàn săn job</h1>
+      <h1 id="loginTitle"><img src="favicon.svg" alt="" width="40" height="40">Bàn săn job</h1>
       <p>Đăng nhập để xem và đồng bộ danh sách job.</p>
       <label>Email<input name="email" type="email" required autocomplete="username"></label>
       <label>Mật khẩu<input name="password" type="password" required autocomplete="current-password"></label>
@@ -22,6 +26,11 @@
   </main>
 
   <div class="app">
+  <nav class="appbar">
+    <span class="brand"><img src="favicon.svg" alt="" width="28" height="28">Bàn săn job</span>
+    <span class="sync" id="sync" data-state="ok" role="status">Đã đồng bộ</span>
+    <button class="btn ghost" id="logoutBtn">Đăng xuất</button>
+  </nav>
   <header class="today">
     <div>
       <p class="today-date"><span id="todayDate"></span> <time class="clock" id="clock"></time></p>
@@ -42,11 +51,6 @@
   </div>
 
   <main class="board" id="board"></main>
-
-  <footer class="foot">
-    <span class="sync" id="sync" data-state="ok" role="status">Đã đồng bộ</span>
-    <button class="btn ghost" id="logoutBtn">Đăng xuất</button>
-  </footer>
   </div>
 
   <dialog class="drawer" id="drawer" aria-labelledby="drawerTitle">
