@@ -17,3 +17,6 @@ next-env.d.ts
 .DS_Store
 npm-debug.log*
 ._*
+
+# schema chạy tay trong Supabase SQL Editor
+supabase.sql
