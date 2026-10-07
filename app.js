@@ -189,15 +189,17 @@ function touchDrag(down, cardEl, id) {
     ghost.dataset.dx = sx - r.left; ghost.dataset.dy = sy - r.top;
     document.body.append(ghost);
     cardEl.classList.add('lifting');
+    board.classList.add('drag-active');
     navigator.vibrate?.(15);
     raf = requestAnimationFrame(tick);
   }
   function tick() {
     ghost.style.left = `${x - ghost.dataset.dx}px`;
     ghost.style.top = `${y - ghost.dataset.dy}px`;
-    // Edge auto-scroll so other columns can be reached on a narrow screen.
-    const edge = 40;
-    if (x < edge) board.scrollLeft -= 12; else if (x > innerWidth - edge) board.scrollLeft += 12;
+    // Edge auto-scroll: faster the deeper the finger goes into the edge zone.
+    const edge = Math.max(48, innerWidth * 0.18);
+    const depth = x < edge ? -(edge - x) : x > innerWidth - edge ? x - (innerWidth - edge) : 0;
+    if (depth) board.scrollLeft += Math.sign(depth) * Math.min(4 + Math.abs(depth) / 3, 22);
     const col = document.elementFromPoint(x, y)?.closest('.column');
     if (col !== over) { over?.classList.remove('touch-over'); col?.classList.add('touch-over'); over = col; }
     raf = requestAnimationFrame(tick);
@@ -222,6 +224,7 @@ function touchDrag(down, cardEl, id) {
     ghost?.remove(); ghost = null;
     over?.classList.remove('touch-over');
     cardEl.classList.remove('lifting');
+    board.classList.remove('drag-active');
     removeEventListener('pointermove', onMove);
     removeEventListener('pointerup', onUp);
     removeEventListener('pointercancel', cleanup);
