@@ -9,7 +9,19 @@
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-auth="loading">
+  <main class="login" aria-labelledby="loginTitle">
+    <form id="loginForm" class="login-card">
+      <h1 id="loginTitle">Bàn săn job</h1>
+      <p>Đăng nhập để xem và đồng bộ danh sách job.</p>
+      <label>Email<input name="email" type="email" required autocomplete="username"></label>
+      <label>Mật khẩu<input name="password" type="password" required autocomplete="current-password"></label>
+      <p class="login-error" id="loginError" role="alert"></p>
+      <button class="btn primary">Đăng nhập</button>
+    </form>
+  </main>
+
+  <div class="app">
   <header class="today">
     <div>
       <p class="today-date" id="todayDate"></p>
@@ -30,6 +42,12 @@
   </div>
 
   <main class="board" id="board"></main>
+
+  <footer class="foot">
+    <span class="sync" id="sync" data-state="ok" role="status">Đã đồng bộ</span>
+    <button class="btn ghost" id="logoutBtn">Đăng xuất</button>
+  </footer>
+  </div>
 
   <dialog class="drawer" id="drawer" aria-labelledby="drawerTitle">
     <form id="jobForm" method="dialog">
@@ -68,6 +86,8 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
   <script src="logic.js"></script>
   <script src="app.js"></script>
 </body>

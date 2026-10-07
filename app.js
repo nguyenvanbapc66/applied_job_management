@@ -1,19 +1,66 @@
 const { STAGES, FIELDS, agenda, week, relDay, sanitize, dayDiff } = Logic;
 const KEY = 'job-desk.v1';
+const PENDING_KEY = 'job-desk.pending';
 const $ = s => document.querySelector(s);
+const db = supabase.createClient(CONFIG.url, CONFIG.key);
 
-// ponytail: localStorage only, one browser. Add sync backend when user needs multi-device.
-let jobs = load();
+// Local cache renders instantly; Supabase is the source of truth.
+// Ids in `pending` changed locally but haven't reached the server yet (offline, error).
+let jobs = readLocal(KEY, []);
+let pending = new Set(readLocal(PENDING_KEY, []));
+// First run after adding sync: jobs saved before have never been uploaded.
+try { if (localStorage.getItem(PENDING_KEY) === null) jobs.forEach(j => pending.add(j.id)); } catch {}
 let query = '';
 let editingId = null;
 
-function load() {
-  try { return sanitize(JSON.parse(localStorage.getItem(KEY) || '[]')); }
-  catch { return []; }
+function readLocal(key, fallback) {
+  try { return key === KEY ? sanitize(JSON.parse(localStorage.getItem(key) || '[]')) : JSON.parse(localStorage.getItem(key)) ?? fallback; }
+  catch { return fallback; }
 }
-function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(jobs)); }
-  catch { toast('Không lưu được: bộ nhớ trình duyệt đầy hoặc bị chặn. Hãy xuất file để giữ dữ liệu.'); }
+function saveLocal() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(jobs));
+    localStorage.setItem(PENDING_KEY, JSON.stringify([...pending]));
+  } catch { /* cache only; server still has the data */ }
+}
+
+// Push every pending id: upsert if it still exists locally, delete otherwise.
+let flushing = null;
+async function flush() {
+  if (flushing || !pending.size) return flushing;
+  flushing = (async () => {
+    const ids = [...pending];
+    const rows = jobs.filter(j => pending.has(j.id)).map(j => ({ id: j.id, data: j, updated_at: new Date(j.updatedAt).toISOString() }));
+    const gone = ids.filter(id => !jobs.some(j => j.id === id));
+    const results = await Promise.all([
+      rows.length ? db.from('jobs').upsert(rows) : {},
+      gone.length ? db.from('jobs').delete().in('id', gone) : {},
+    ]);
+    const err = results.find(r => r.error)?.error;
+    if (err) { setSync('offline'); toast(`Chưa đồng bộ được, sẽ thử lại: ${err.message}`); return; }
+    ids.forEach(id => pending.delete(id));
+    saveLocal();
+    setSync('ok');
+  })().finally(() => { flushing = null; });
+  return flushing;
+}
+
+async function pull() {
+  await flush();
+  const { data, error } = await db.from('jobs').select('data');
+  if (error) { setSync('offline'); return; }
+  const server = sanitize(data.map(r => r.data));
+  // Keep local versions of anything still waiting to upload.
+  jobs = [...server.filter(j => !pending.has(j.id)), ...jobs.filter(j => pending.has(j.id))];
+  saveLocal();
+  render();
+  setSync(pending.size ? 'offline' : 'ok');
+}
+
+function setSync(state) {
+  const n = $('#sync');
+  n.dataset.state = state;
+  n.textContent = state === 'ok' ? 'Đã đồng bộ' : state === 'busy' ? 'Đang lưu…' : 'Chưa đồng bộ';
 }
 
 const today = () => Logic.iso(new Date());
@@ -192,7 +239,7 @@ function moveTo(id, stage) {
   job.stage = stage;
   if (stage === 'applied' && !job.appliedDate) job.appliedDate = today();
   job.updatedAt = Date.now();
-  commit();
+  commit(id);
   toast(`Đã chuyển ${job.company} sang ${STAGES.find(s => s.id === stage).label}`);
 }
 
@@ -225,9 +272,10 @@ form.addEventListener('submit', () => {
   const data = Object.fromEntries(FIELDS.map(f => [f, (form.elements[f]?.value ?? '').trim()]));
   if (data.stage !== 'wish' && data.stage !== 'closed' && !data.appliedDate) data.appliedDate = today();
   const existing = jobs.find(j => j.id === editingId);
+  const id = existing?.id ?? crypto.randomUUID();
   if (existing) Object.assign(existing, data, { updatedAt: Date.now() });
-  else jobs.push({ id: crypto.randomUUID(), ...data, updatedAt: Date.now() });
-  commit();
+  else jobs.push({ id, ...data, updatedAt: Date.now() });
+  commit(id);
   toast(existing ? 'Đã lưu' : `Đã thêm ${data.company}`);
 });
 
@@ -239,8 +287,8 @@ $('#deleteBtn').onclick = () => {
   if (idx < 0) return;
   const [removed] = jobs.splice(idx, 1);
   drawer.close();
-  commit();
-  toast(`Đã xoá ${removed.company}`, 'Hoàn tác', () => { jobs.splice(idx, 0, removed); commit(); });
+  commit(removed.id);
+  toast(`Đã xoá ${removed.company}`, 'Hoàn tác', () => { jobs.splice(idx, 0, removed); commit(removed.id); });
 };
 
 /* ---------- Toolbar ---------- */
@@ -263,8 +311,9 @@ $('#importInput').addEventListener('change', async e => {
   try {
     const incoming = sanitize(JSON.parse(await file.text()));
     if (jobs.length && !confirm(`Thay ${jobs.length} job hiện tại bằng ${incoming.length} job trong file?`)) return;
+    const ids = [...jobs, ...incoming].map(j => j.id);
     jobs = incoming;
-    commit();
+    commit(...ids);
     toast(`Đã nhập ${incoming.length} job`);
   } catch (err) {
     toast(err instanceof SyntaxError ? 'File không phải JSON hợp lệ.' : err.message);
@@ -272,7 +321,7 @@ $('#importInput').addEventListener('change', async e => {
 });
 
 document.addEventListener('keydown', e => {
-  if (drawer.open || e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (!signedIn || drawer.open || e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
   if (e.key === 'n') { e.preventDefault(); openDrawer(null); }
   if (e.key === '/') { e.preventDefault(); $('#search').focus(); }
 });
@@ -288,6 +337,49 @@ function toast(msg, actionLabel, action) {
   toastTimer = setTimeout(() => t.classList.remove('show'), action ? 6000 : 2500);
 }
 
-function commit() { save(); render(); }
+function commit(...ids) {
+  ids.forEach(id => pending.add(id));
+  saveLocal();
+  render();
+  setSync('busy');
+  flush();
+}
 function render() { renderToday(); renderBoard(); }
-render();
+
+/* ---------- Auth ---------- */
+// Accounts are created in the Supabase dashboard only; sign-ups are disabled there.
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, btn = f.querySelector('button');
+  btn.disabled = true;
+  $('#loginError').textContent = '';
+  const { error } = await db.auth.signInWithPassword({ email: f.email.value.trim(), password: f.password.value });
+  btn.disabled = false;
+  if (error) $('#loginError').textContent = error.message === 'Invalid login credentials'
+    ? 'Sai email hoặc mật khẩu.' : `Không đăng nhập được: ${error.message}`;
+});
+
+$('#logoutBtn').onclick = async () => {
+  await flush();
+  if (pending.size && !confirm('Còn thay đổi chưa đồng bộ. Đăng xuất sẽ mất các thay đổi đó. Vẫn đăng xuất?')) return;
+  await db.auth.signOut();
+};
+
+let signedIn = false;
+function applySession(session) {
+  const now = !!session;
+  document.body.dataset.auth = now ? 'in' : 'out';
+  if (now && !signedIn) { render(); pull(); }
+  if (!now && signedIn) {
+    // Clear the cache so the next person on this device sees nothing.
+    jobs = []; pending.clear(); saveLocal();
+  }
+  signedIn = now;
+}
+db.auth.onAuthStateChange((_event, session) => applySession(session));
+// Fallback if the initial event never arrives (bad config, blocked storage): show login.
+db.auth.getSession().then(({ data }) => applySession(data.session), () => applySession(null));
+
+// Pick up edits made on the other device when this tab comes back into view.
+document.addEventListener('visibilitychange', () => { if (signedIn && !document.hidden) pull(); });
+addEventListener('online', () => signedIn && pull());

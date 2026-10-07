@@ -253,6 +253,33 @@ kbd { font: inherit; font-size: 12px; opacity: .6; border: 1px solid currentColo
 }
 .card.lifting { opacity: .35; }
 
+/* ---------- Auth gate ---------- */
+body:not([data-auth="in"]) .app,
+body:not([data-auth="out"]) .login { display: none; }
+.login { min-height: 100dvh; display: grid; place-items: center; padding: 16px; }
+.login-card {
+  width: min(380px, 100%);
+  padding: 32px 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  display: grid; gap: 14px;
+}
+.login-card h1 { margin: 0; font-size: 34px; font-weight: 700; font-variation-settings: "wdth" 82; letter-spacing: -0.02em; }
+.login-card p { margin: 0; color: var(--ink-soft); }
+.login-card label { display: grid; gap: 5px; font-size: 13.5px; color: var(--ink-soft); }
+.login-card .btn { justify-content: center; padding-block: 11px; }
+.login-card .btn:disabled { opacity: .6; cursor: wait; }
+.login-error { color: var(--danger) !important; font-weight: 600; min-height: 1.5em; }
+@supports (corner-shape: squircle) { .login-card { corner-shape: squircle; } }
+
+.foot { display: flex; justify-content: space-between; align-items: center; margin: 0 16px 24px; }
+.sync { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 13.5px; }
+.sync::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--offer); }
+.sync[data-state="busy"]::before { background: var(--interview); }
+.sync[data-state="offline"] { color: var(--danger); font-weight: 600; }
+.sync[data-state="offline"]::before { background: var(--danger); }
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 20px; translate: -50% 20px;
