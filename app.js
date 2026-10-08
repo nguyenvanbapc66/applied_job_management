@@ -386,6 +386,7 @@ function openDrawer(id, stage = 'wish', focusNote = false) {
   renderJourney();
   syncOpenUrl();
   drawer.style.removeProperty('--from');
+  if (!drawer.open) lockPage();
   drawer.showModal();
   drawer.querySelector('.fields').scrollTop = 0;
   // Touch screens: focusing a field pops the keyboard and shoves the sheet up. Only focus with a mouse/keyboard;
@@ -423,7 +424,19 @@ function closeDrawer() {
 drawer.addEventListener('cancel', e => { e.preventDefault(); closeDrawer(); });
 drawer.querySelector('[data-close]').onclick = closeDrawer;
 drawer.addEventListener('click', e => { if (e.target === drawer) closeDrawer(); });
-drawer.addEventListener('close', () => drawer.style.removeProperty('translate'));
+// iOS Safari scrolls the page behind a modal dialog (overflow:hidden on body is not enough there).
+// Pin the body in place while the drawer is open and put it back where it was on close.
+let lockedY = 0;
+function lockPage() {
+  lockedY = scrollY;
+  Object.assign(document.body.style, { position: 'fixed', top: `-${lockedY}px`, left: '0', right: '0' });
+}
+function unlockPage() {
+  if (document.body.style.position !== 'fixed') return;
+  Object.assign(document.body.style, { position: '', top: '', left: '', right: '' });
+  scrollTo(0, lockedY);
+}
+drawer.addEventListener('close', () => { drawer.style.removeProperty('translate'); unlockPage(); });
 
 // Mobile sheet: drag the header down to dismiss.
 {
