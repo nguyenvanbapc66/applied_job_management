@@ -1,4 +1,4 @@
-const { STAGES, FIELDS, agenda, week, relDay, sanitize, dayDiff } = Logic;
+const { STAGES, ACTIVE, FIELDS, agenda, week, relDay, sanitize, dayDiff, logEntry, withMove, sortedLog, lastNote, linkify } = Logic;
 const KEY = 'job-desk.v1';
 const PENDING_KEY = 'job-desk.pending';
 const $ = s => document.querySelector(s);
@@ -77,7 +77,7 @@ function renderToday() {
   $('#todayDate').textContent = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   const { due, stale } = agenda(jobs, t);
-  const active = jobs.filter(j => ['wish', 'applied', 'interview'].includes(j.stage)).length;
+  const active = jobs.filter(j => ACTIVE.has(j.stage)).length;
   const late = due.filter(d => d.in < 0).length;
   $('#greeting').textContent =
     !jobs.length ? 'Bàn trống. Thêm job đầu tiên bạn đang để mắt tới.' :
@@ -128,7 +128,7 @@ function renderBoard() {
       el('h2', {}, stage.label, el('span', { className: 'count', textContent: items.length })),
       el('div', { className: 'cards' }, ...items.map(j => card(j, t))),
       !items.length && el('p', { className: 'empty', textContent: q ? 'Không có kết quả.' : emptyCopy[stage.id] }),
-      stage.id !== 'closed' && el('button', { className: 'add', type: 'button', textContent: '+ Thêm', onclick: () => openDrawer(null, stage.id) }),
+      !['rejected', 'closed'].includes(stage.id) && el('button', { className: 'add', type: 'button', textContent: '+ Thêm', onclick: () => openDrawer(null, stage.id) }),
     );
     col.style.setProperty('--c', stageColor(stage.id));
     col.dataset.stage = stage.id;
@@ -145,9 +145,11 @@ function renderBoard() {
 const emptyCopy = {
   wish: 'Lưu lại những job bạn muốn apply.',
   applied: 'Kéo job vào đây khi đã gửi CV.',
+  screening: 'HR đã phản hồi và đang xem hồ sơ.',
   interview: 'Chưa có lịch phỏng vấn.',
   offer: 'Offer sẽ nằm ở đây.',
-  closed: 'Job bị từ chối hoặc bạn bỏ qua.',
+  rejected: 'HR từ chối hoặc báo không đi tiếp.',
+  closed: 'Job bạn tự dừng hoặc tin đã đóng.',
 };
 
 function card(job, t) {
@@ -159,9 +161,11 @@ function card(job, t) {
   if (job.location) meta.push(el('span', { className: 'chip', textContent: job.location }));
   if (job.salary) meta.push(el('span', { className: 'chip', textContent: job.salary }));
 
+  const note = lastNote(job.log);
   const b = el('button', { className: 'card', type: 'button', draggable: true, onclick: () => openDrawer(job.id) },
     el('span', { className: 'co', textContent: job.company }),
     el('span', { className: 'role', textContent: job.role }),
+    note && el('span', { className: 'last-note', textContent: note }),
     meta.length > 0 && el('span', { className: 'meta' }, ...meta));
   b.style.setProperty('--c', stageColor(job.stage));
   b.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', job.id); b.classList.add('dragging'); });
@@ -240,10 +244,11 @@ function moveTo(id, stage) {
   const job = jobs.find(j => j.id === id);
   if (!job || job.stage === stage) return;
   job.stage = stage;
+  job.log = withMove(job.log, stage, today());
   if (stage === 'applied' && !job.appliedDate) job.appliedDate = today();
   job.updatedAt = Date.now();
   commit(id);
-  toast(`Đã chuyển ${job.company} sang ${STAGES.find(s => s.id === stage).label}`);
+  toast(`Đã chuyển ${job.company} sang ${stageLabel(stage)}`, 'Ghi chú', () => openDrawer(id, stage, true));
 }
 
 /* ---------- Drawer ---------- */
@@ -256,40 +261,199 @@ $('#stagePick').append(...STAGES.map(s => {
   return l;
 }));
 form.addEventListener('change', e => {
-  if (e.target.name === 'stage') drawer.style.setProperty('--c', stageColor(e.target.value));
+  if (e.target.name === 'stage') { setDrawerStage(e.target.value); renderJourney(); }
 });
 
-function openDrawer(id, stage = 'wish') {
-  editingId = id;
-  const job = jobs.find(j => j.id === id) || { stage };
-  for (const f of FIELDS) if (form.elements[f]) form.elements[f].value = job[f] || '';
-  form.elements.stage.value = job.stage;
-  drawer.style.setProperty('--c', stageColor(job.stage));
-  $('#drawerTitle').textContent = id ? job.company : 'Thêm job';
-  $('#deleteBtn').hidden = !id;
-  drawer.showModal();
-  form.elements.company.focus();
+/* ---------- Journey: step-by-step notes ---------- */
+// Prompts are starters, not fields: tap one to add its line, then type. What matters differs per step.
+const PROMPTS = {
+  wish: ['Vì sao muốn apply', 'Cần chuẩn bị gì', 'Hạn nộp'],
+  applied: ['Apply qua kênh', 'Bản CV đã gửi', 'Người giới thiệu'],
+  screening: ['HR liên hệ', 'Kênh liên hệ', 'Họ hỏi gì', 'Hẹn phản hồi'],
+  interview: ['Vòng', 'Người phỏng vấn', 'Câu hỏi gặp', 'Chỗ trả lời chưa tốt', 'Đã gửi cảm ơn'],
+  offer: ['Lương và phúc lợi', 'Hạn trả lời', 'Điểm cần thương lượng'],
+  rejected: ['Lý do HR đưa ra', 'Ở vòng nào', 'Bài học cho lần sau', 'Có thể apply lại khi'],
+  closed: ['Vì sao dừng'],
+};
+const setDrawerStage = id => { drawer.style.setProperty('--c', stageColor(id)); drawer.style.setProperty('--drawer-c', stageColor(id)); };
+// Text with real links. target=_blank lets the OS hand YouTube/LinkedIn links to their apps on mobile.
+const linked = text => linkify(text).map(p => typeof p === 'string' ? p
+  : el('a', { href: p.url, textContent: p.url, target: '_blank', rel: 'noopener noreferrer' }));
+const stageLabel = id => STAGES.find(s => s.id === id).label;
+// Notes typed in the drawer belong to `draftLog` until saved. For a job that already exists they're
+// written through at once, so closing the drawer never loses a note.
+let draftLog = [];
+let editingEntry = null;
+
+function persistLog() {
+  const job = jobs.find(j => j.id === editingId);
+  if (!job) return;
+  job.log = draftLog;
+  job.updatedAt = Date.now();
+  commit(job.id);
 }
 
-form.addEventListener('submit', () => {
+function renderJourney() {
+  const stage = form.elements.stage.value;
+  $('#noteText').placeholder = `Chuyện gì đã xảy ra ở bước "${stageLabel(stage)}"?`;
+  $('#prompts').replaceChildren(...PROMPTS[stage].map(p => el('button', {
+    type: 'button', className: 'prompt', textContent: p,
+    onclick: () => {
+      const t = $('#noteText');
+      t.value = `${t.value.trimEnd()}${t.value.trim() ? '\n' : ''}${p}: `;
+      t.focus(); t.setSelectionRange(t.value.length, t.value.length);
+    },
+  })));
+
+  const entries = sortedLog(draftLog);
+  $('#timeline').replaceChildren(...(entries.length ? entries.map(timelineItem)
+    : [el('li', { className: 'timeline-empty', textContent: 'Chưa có ghi chú. Mỗi lần chuyển bước, app tự thêm một mốc ở đây.' })]));
+}
+
+function timelineItem(e) {
+  const li = el('li', { className: `entry${e.move ? ' move' : ''}` });
+  li.style.setProperty('--c', stageColor(e.stage));
+  const when = new Date(e.date + 'T00:00').toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' });
+  const head = el('p', { className: 'entry-head' },
+    el('strong', { textContent: e.move ? `Chuyển sang ${stageLabel(e.stage)}` : stageLabel(e.stage) }),
+    el('time', { dateTime: e.date, textContent: when }));
+
+  if (editingEntry === e.id) {
+    const ta = el('textarea', { rows: 3, value: e.text, ariaLabel: 'Sửa ghi chú' });
+    const save = () => { e.text = ta.value.trim(); editingEntry = null; persistLog(); renderJourney(); };
+    ta.addEventListener('keydown', k => {
+      if (k.key === 'Enter' && (k.metaKey || k.ctrlKey)) { k.preventDefault(); save(); }
+      if (k.key === 'Escape') { k.preventDefault(); k.stopPropagation(); editingEntry = null; renderJourney(); }
+    });
+    li.append(head, ta, el('div', { className: 'entry-actions' },
+      el('button', { type: 'button', className: 'link', textContent: 'Huỷ', onclick: () => { editingEntry = null; renderJourney(); } }),
+      el('button', { type: 'button', className: 'link strong', textContent: 'Lưu ghi chú', onclick: save })));
+    queueMicrotask(() => ta.focus());
+    return li;
+  }
+
+  li.append(head,
+    e.text && el('p', { className: 'entry-text' }, ...linked(e.text)),
+    el('div', { className: 'entry-actions' },
+      el('button', { type: 'button', className: 'link', textContent: e.text ? 'Sửa' : 'Thêm ghi chú', onclick: () => { editingEntry = e.id; renderJourney(); } }),
+      el('button', { type: 'button', className: 'link', textContent: 'Xoá', onclick: () => {
+        const idx = draftLog.indexOf(e), jobId = editingId;
+        draftLog = draftLog.filter(x => x !== e);
+        persistLog(); renderJourney();
+        // Undo targets the job by id: the drawer may be showing another job by then.
+        toast('Đã xoá ghi chú', 'Hoàn tác', () => {
+          const job = jobs.find(j => j.id === jobId);
+          if (job) { job.log = job.log.toSpliced(idx, 0, e); job.updatedAt = Date.now(); commit(jobId); }
+          else if (editingId === jobId) draftLog = draftLog.toSpliced(idx, 0, e);
+          if (drawer.open && editingId === jobId) { if (job) draftLog = [...job.log]; renderJourney(); }
+        });
+      } })));
+  return li;
+}
+
+function addNote() {
+  const text = $('#noteText').value.trim();
+  if (!text) { $('#noteText').focus(); return; }
+  draftLog = [...draftLog, logEntry(form.elements.stage.value, $('#noteDate').value || today(), text)];
+  $('#noteText').value = '';
+  persistLog();
+  renderJourney();
+}
+$('#addNoteBtn').onclick = addNote;
+$('#noteText').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addNote(); }
+});
+
+function syncOpenUrl() {
+  const v = form.elements.url.value.trim(), ok = /^https?:\/\//i.test(v);
+  $('#openUrl').hidden = !ok;
+  if (ok) $('#openUrl').href = v; else $('#openUrl').removeAttribute('href');
+}
+form.elements.url.addEventListener('input', syncOpenUrl);
+
+function openDrawer(id, stage = 'wish', focusNote = false) {
+  editingId = id;
+  const job = jobs.find(j => j.id === id) || { stage, log: [] };
+  for (const f of FIELDS) if (form.elements[f]) form.elements[f].value = job[f] || '';
+  form.elements.stage.value = job.stage;
+  draftLog = [...job.log];
+  editingEntry = null;
+  $('#noteText').value = '';
+  $('#noteDate').value = today();
+  setDrawerStage(job.stage);
+  $('#drawerTitle').textContent = id ? job.company : 'Thêm job';
+  $('#deleteBtn').hidden = !id;
+  renderJourney();
+  syncOpenUrl();
+  drawer.style.removeProperty('--from');
+  drawer.showModal();
+  drawer.querySelector('.fields').scrollTop = 0;
+  (focusNote ? $('#noteText') : form.elements.company).focus();
+}
+
+form.addEventListener('submit', e => {
+  e.preventDefault();
   const data = Object.fromEntries(FIELDS.map(f => [f, (form.elements[f]?.value ?? '').trim()]));
-  if (data.stage !== 'wish' && data.stage !== 'closed' && !data.appliedDate) data.appliedDate = today();
+  if (!['wish', 'rejected', 'closed'].includes(data.stage) && !data.appliedDate) data.appliedDate = today();
+  // A note typed but not yet added would be lost on save; keep it.
+  const pendingText = $('#noteText').value.trim();
+  if (pendingText) draftLog = [...draftLog, logEntry(data.stage, $('#noteDate').value || today(), pendingText)];
   const existing = jobs.find(j => j.id === editingId);
+  if (!existing || existing.stage !== data.stage) draftLog = withMove(draftLog, data.stage, today());
   const id = existing?.id ?? crypto.randomUUID();
-  if (existing) Object.assign(existing, data, { updatedAt: Date.now() });
-  else jobs.push({ id, ...data, updatedAt: Date.now() });
+  if (existing) Object.assign(existing, data, { log: draftLog, updatedAt: Date.now() });
+  else jobs.push({ id, ...data, log: draftLog, updatedAt: Date.now() });
   commit(id);
+  closeDrawer();
   toast(existing ? 'Đã lưu' : `Đã thêm ${data.company}`);
 });
 
-drawer.querySelector('[data-close]').onclick = () => drawer.close();
-drawer.addEventListener('click', e => { if (e.target === drawer) drawer.close(); });
+// Close with an exit animation. `dialog method=dialog` submit and Esc both route through here.
+function closeDrawer() {
+  if (!drawer.open || drawer.classList.contains('closing')) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return drawer.close();
+  drawer.classList.add('closing');
+  const done = () => { drawer.classList.remove('closing'); drawer.close(); };
+  drawer.addEventListener('animationend', done, { once: true });
+  setTimeout(() => drawer.classList.contains('closing') && done(), 400); // safety if no animationend
+}
+drawer.addEventListener('cancel', e => { e.preventDefault(); closeDrawer(); });
+drawer.querySelector('[data-close]').onclick = closeDrawer;
+drawer.addEventListener('click', e => { if (e.target === drawer) closeDrawer(); });
+drawer.addEventListener('close', () => drawer.style.removeProperty('translate'));
+
+// Mobile sheet: drag the header down to dismiss.
+{
+  const head = drawer.querySelector('.drawer-head');
+  let startY = null, dy = 0, t0 = 0;
+  head.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' || innerWidth > 720 || e.target.closest('button')) return;
+    startY = e.clientY; dy = 0; t0 = performance.now();
+    head.setPointerCapture(e.pointerId);
+    drawer.classList.add('dragging');
+  });
+  head.addEventListener('pointermove', e => {
+    if (startY === null) return;
+    dy = Math.max(0, e.clientY - startY);
+    drawer.style.translate = `0 ${dy}px`;
+  });
+  const end = () => {
+    if (startY === null) return;
+    startY = null;
+    drawer.classList.remove('dragging');
+    const fast = dy / (performance.now() - t0) > 0.6; // px/ms flick
+    if (dy > drawer.offsetHeight * 0.25 || (fast && dy > 40)) { drawer.style.setProperty('--from', `${dy}px`); drawer.style.removeProperty('translate'); closeDrawer(); }
+    else drawer.style.removeProperty('translate');
+  };
+  head.addEventListener('pointerup', end);
+  head.addEventListener('pointercancel', end);
+}
 
 $('#deleteBtn').onclick = () => {
   const idx = jobs.findIndex(j => j.id === editingId);
   if (idx < 0) return;
   const [removed] = jobs.splice(idx, 1);
-  drawer.close();
+  closeDrawer();
   commit(removed.id);
   toast(`Đã xoá ${removed.company}`, 'Hoàn tác', () => { jobs.splice(idx, 0, removed); commit(removed.id); });
 };

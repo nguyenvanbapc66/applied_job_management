@@ -25,4 +25,28 @@ assert.strictEqual(s[0].stage, 'wish');
 assert.strictEqual(s[0].nextDate, '');
 
 assert.strictEqual(L.relDay(-1), 'trễ 1 ngày');
+
+// Journey log
+let log = L.withMove([], 'applied', '2026-10-01');
+log = [...log, L.logEntry('applied', '2026-10-01', 'Gửi CV qua TopCV')];
+log = L.withMove(log, 'screening', '2026-10-05');
+log[2].text = 'HR gọi, hẹn tuần sau';
+assert.deepStrictEqual(L.sortedLog(log).map(e => e.stage), ['screening', 'applied', 'applied']);
+assert.strictEqual(L.sortedLog(log)[1].text, 'Gửi CV qua TopCV'); // same day: later entry first
+assert.strictEqual(L.lastNote(log), 'HR gọi, hẹn tuần sau');
+assert.strictEqual(L.lastNote(L.withMove([], 'wish', '2026-10-01')), '');
+
+const withLog = L.sanitize([{ company: 'X', role: 'Y', log: [{ stage: 'rejected', date: '2026-10-02', text: 'Not move forward' }, { stage: 'nope', date: '2026-10-02' }, 'junk'] }]);
+assert.strictEqual(withLog[0].log.length, 1);
+assert.strictEqual(withLog[0].log[0].move, false);
+assert.deepStrictEqual(L.sanitize([{ company: 'X', role: 'Y' }])[0].log, []);
+assert.ok(!L.agenda([{ id: 'r', stage: 'rejected', nextDate: '2026-10-07' }], '2026-10-07').due.length);
+
+// Links
+assert.deepStrictEqual(L.linkify('Xem https://drjoy.vn/product.\nVideo: https://www.youtube.com/watch?v=MmAvMB4o_DU'),
+  ['Xem ', { url: 'https://drjoy.vn/product' }, '.\nVideo: ', { url: 'https://www.youtube.com/watch?v=MmAvMB4o_DU' }]);
+assert.deepStrictEqual(L.linkify('(https://drjoy.co.jp/)'), ['(', { url: 'https://drjoy.co.jp/' }, ')']);
+assert.deepStrictEqual(L.linkify('javascript:alert(1) không có link'), ['javascript:alert(1) không có link']);
+assert.deepStrictEqual(L.linkify(''), []);
+
 console.log('ok');

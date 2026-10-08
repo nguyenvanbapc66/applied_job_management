@@ -56,6 +56,7 @@
   <dialog class="drawer" id="drawer" aria-labelledby="drawerTitle">
     <form id="jobForm" method="dialog">
       <header class="drawer-head">
+        <span class="grabber" aria-hidden="true"></span>
         <h2 id="drawerTitle">Thêm job</h2>
         <button type="button" class="btn icon" data-close aria-label="Đóng">✕</button>
       </header>
@@ -66,12 +67,27 @@
           <legend>Giai đoạn</legend>
           <div id="stagePick"></div>
         </fieldset>
+        <section class="journey" aria-labelledby="journeyTitle">
+          <h3 id="journeyTitle">Hành trình</h3>
+          <div class="composer">
+            <textarea id="noteText" rows="3" aria-label="Ghi chú cho bước hiện tại"></textarea>
+            <div class="prompts" id="prompts"></div>
+            <div class="composer-foot">
+              <label class="note-date">Ngày<input type="date" id="noteDate"></label>
+              <button type="button" class="btn" id="addNoteBtn" title="⌘ + Enter">Thêm ghi chú</button>
+            </div>
+          </div>
+          <ol class="timeline" id="timeline"></ol>
+        </section>
         <div class="row">
           <label>Ngày apply<input name="appliedDate" type="date"></label>
           <label>Địa điểm<input name="location" placeholder="Hà Nội · Remote"></label>
         </div>
         <label>Mức lương<input name="salary" placeholder="vd. 30–40 triệu"></label>
-        <label>Link tin tuyển dụng<input name="url" type="url" placeholder="https://"></label>
+        <div class="url-field">
+          <label>Link tin tuyển dụng<input name="url" type="url" placeholder="https://"></label>
+          <a class="btn ghost" id="openUrl" target="_blank" rel="noopener noreferrer" hidden>Mở link</a>
+        </div>
         <div class="next">
           <p>Bước tiếp theo</p>
           <div class="row">
@@ -79,7 +95,7 @@
             <label>Việc cần làm<input name="nextNote" placeholder="Gửi email hỏi kết quả"></label>
           </div>
         </div>
-        <label>Ghi chú<textarea name="notes" rows="5" placeholder="Người liên hệ, câu hỏi phỏng vấn, cảm nhận…"></textarea></label>
+        <label>Ghi chú chung<textarea name="notes" rows="3" placeholder="Thông tin không gắn với bước nào: người quen ở công ty, tech stack…"></textarea></label>
       </div>
       <footer class="drawer-foot">
         <button type="button" class="btn danger" id="deleteBtn">Xoá job</button>
