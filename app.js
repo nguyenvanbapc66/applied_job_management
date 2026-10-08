@@ -388,7 +388,10 @@ function openDrawer(id, stage = 'wish', focusNote = false) {
   drawer.style.removeProperty('--from');
   drawer.showModal();
   drawer.querySelector('.fields').scrollTop = 0;
-  (focusNote ? $('#noteText') : form.elements.company).focus();
+  // Touch screens: focusing a field pops the keyboard and shoves the sheet up. Only focus with a mouse/keyboard;
+  // on touch, bring the note box into view and let the user tap when they actually want to type.
+  if (!matchMedia('(pointer: coarse)').matches) (focusNote ? $('#noteText') : form.elements.company).focus();
+  else if (focusNote) $('#noteText').scrollIntoView({ block: 'center' });
 }
 
 form.addEventListener('submit', e => {
