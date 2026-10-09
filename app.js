@@ -165,7 +165,8 @@ function card(job, t) {
   const b = el('button', { className: 'card', type: 'button', draggable: true, onclick: () => openDrawer(job.id) },
     el('span', { className: 'co', textContent: job.company }),
     el('span', { className: 'role', textContent: job.role }),
-    note && el('span', { className: 'last-note', textContent: note }),
+    // Collapse blank lines so a pasted email doesn't spend its 2-line preview on an empty line.
+    note && el('span', { className: 'last-note', textContent: note.replace(/\n\s*\n+/g, '\n') }),
     meta.length > 0 && el('span', { className: 'meta' }, ...meta));
   b.style.setProperty('--c', stageColor(job.stage));
   b.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', job.id); b.classList.add('dragging'); });
